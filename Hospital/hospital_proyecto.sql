@@ -95,7 +95,7 @@ CREATE TABLE Turno (
 CREATE TABLE Medicacion (
 	ID			INT PRIMARY KEY IDENTITY(1,1) NOT NULL,
 	Nombre		VARCHAR(50) NOT NULL,
-	Fabricante	VARCHAR(50) NOT NULL,
+	Fabricante	VARCHAR(50) NOT NULL,	-- Esto debería tener su propia tabla Fabricante, y este campo ser una FK
 	Descripcion	VARCHAR(500) NOT NULL
 )
 
@@ -211,6 +211,62 @@ GO
 DECLARE @credencial VARCHAR(20)
 EXEC randCredencial @credencial OUTPUT
 PRINT @credencial
+GO
+
+-- Random ID Tipo Sala
+CREATE PROCEDURE randIDTipoSala @idTipoSala INT OUTPUT
+AS
+SET @idTipoSala = (SELECT TOP 1 ID FROM TipoSala ORDER BY NEWID())
+GO
+
+-- Random ID Bloque
+CREATE PROCEDURE randIDBloque @idBloque INT OUTPUT
+AS
+SET @idBloque = (SELECT TOP 1 ID FROM Bloque ORDER BY NEWID())
+GO
+
+-- Random ID Sala
+CREATE PROCEDURE randIDSala @idSala INT OUTPUT
+AS
+SET @idSala = (SELECT TOP 1 ID FROM Sala ORDER BY NEWID())
+GO
+
+-- Random ID Paciente
+CREATE PROCEDURE randIDPaciente @idPaciente INT OUTPUT
+AS
+SET @idPaciente = (SELECT TOP 1 ID FROM Paciente ORDER BY NEWID())
+GO
+
+-- Random ID Enfermero (registrado)
+CREATE PROCEDURE randIDEnfermero @idEnfermero INT OUTPUT
+AS
+SET @idEnfermero = (SELECT TOP 1 ID FROM Enfermero WHERE Registrado = 1 ORDER BY NEWID())
+GO
+
+-- Random Fecha Evento (Turno, Admision, Llamada, Intervención), un año desde input
+CREATE PROCEDURE randFecha @fecha DATETIME OUTPUT
+AS
+DECLARE @to DATETIME = DATEADD(YEAR, 1, @fecha)
+DECLARE @sec INT = DATEDIFF(SECOND, @fecha, @to)
+DECLARE @random INT = ROUND(((@sec-1) * RAND()), 0)
+SET @fecha = (SELECT DATEADD(SECOND, @random, @fecha))
+GO
+--test
+DECLARE @fecha DATETIME = '2021-01-01 00:00:00'
+EXEC randFecha @fecha OUTPUT
+PRINT @fecha
+GO
+
+-- Random ID Medicacion
+CREATE PROCEDURE randIDMedicacion @idMedicacion INT OUTPUT
+AS
+SET @idMedicacion = (SELECT TOP 1 ID FROM Medicacion ORDER BY NEWID())
+GO
+
+-- Random ID Turno
+CREATE PROCEDURE randIDTurno @idTurno INT OUTPUT
+AS
+SET @idTurno = (SELECT TOP 1 ID FROM Turno ORDER BY NEWID())
 GO
 
 -----------------------SP DE INSERCIÓN-----------------------
@@ -545,7 +601,167 @@ EXEC insertTipoSala 5
 SELECT * FROM TipoSala
 GO
 
+CREATE PROCEDURE insertSala @cant INT
+AS
+IF @cant <= 0
+	BEGIN
+	PRINT 'Ingrese una cantidad mayor a cero.'
+	RETURN
+	END
+BEGIN TRY
+	BEGIN TRAN
+	DECLARE @count INT = 0;
+	DECLARE @idTipoSala INT;
+	DECLARE @idBloque INT;
+	DECLARE @suffix INT = (SELECT MAX(ID) FROM Sala);
+	IF @suffix IS NULL SET @suffix = 0;
+	WHILE @count < @cant
+	BEGIN
+		EXEC randIDTipoSala @idTipoSala OUTPUT
+		EXEC randIDBloque @idBloque OUTPUT
+		INSERT INTO Sala VALUES (
+			'Sala' + CAST((@count+@suffix) AS VARCHAR(10)),
+			@idTipoSala,
+			@idBloque,
+			ROUND(RAND(),0))
+		SET @count = @count + 1
+	END
+	COMMIT TRAN
+END TRY
+BEGIN CATCH
+	PRINT 'UNKNOWN ERROR'
+	ROLLBACK TRAN
+END CATCH
+GO
+--test
+EXEC insertSala 10
+SELECT * FROM Sala
+GO
 
+CREATE PROCEDURE insertTurno @cant INT
+AS
+IF @cant <= 0
+	BEGIN
+	PRINT 'Ingrese una cantidad mayor a cero.'
+	RETURN
+	END
+BEGIN TRY
+	BEGIN TRAN
+	DECLARE @count INT = 0;
+	DECLARE @idPaciente INT;
+	DECLARE @idEnfermero INT;
+	DECLARE @idMedico INT;
+	DECLARE @idSala INT;
+	DECLARE @suffix INT = (SELECT MAX(ID) FROM Turno);
+	IF @suffix IS NULL SET @suffix = 0;
+	WHILE @count < @cant
+	BEGIN
+		DECLARE @fecha DATETIME = '2021-01-01 00:00:00';
+		EXEC randIDPaciente @idPaciente OUTPUT
+		EXEC randIDEnfermero @idEnfermero OUTPUT
+		EXEC randIDMedico @idMedico OUTPUT
+		EXEC randFecha @fecha OUTPUT
+		EXEC randIDSala @idSala OUTPUT
+		INSERT INTO Turno VALUES (
+			@idPaciente,
+			@idEnfermero,
+			@idMedico,
+			@fecha,
+			DATEADD(MINUTE,ROUND(RAND()*115+5,0),@fecha),
+			@idSala)
+		SET @count = @count + 1
+	END
+	COMMIT TRAN
+END TRY
+BEGIN CATCH
+	PRINT 'UNKNOWN ERROR'
+	ROLLBACK TRAN
+END CATCH
+GO
+--test
+EXEC insertTurno 20
+SELECT * FROM Turno
+GO
+
+CREATE PROCEDURE insertMedicacion @cant INT
+AS
+IF @cant <= 0
+	BEGIN
+	PRINT 'Ingrese una cantidad mayor a cero.'
+	RETURN
+	END
+BEGIN TRY
+	BEGIN TRAN
+	DECLARE @count INT = 0;
+	DECLARE @suffix INT = (SELECT MAX(ID) FROM Medicacion);
+	IF @suffix IS NULL SET @suffix = 0;
+	WHILE @count < @cant
+	BEGIN
+		INSERT INTO Medicacion VALUES (
+			'Nombre' + CAST((@count+@suffix) AS VARCHAR(10)),
+			'Fabricante' + CAST((@count+@suffix) AS VARCHAR(10)),
+			'Descripcion' + CAST((@count+@suffix) AS VARCHAR(10)))
+		SET @count = @count + 1
+	END
+	COMMIT TRAN
+END TRY
+BEGIN CATCH
+	PRINT 'UNKNOWN ERROR'
+	ROLLBACK TRAN
+END CATCH
+GO
+--test
+EXEC insertMedicacion 100
+SELECT * FROM Medicacion
+GO
+
+CREATE PROCEDURE insertReceta @cant INT
+AS
+IF @cant <= 0
+	BEGIN
+	PRINT 'Ingrese una cantidad mayor a cero.'
+	RETURN
+	END
+BEGIN TRY
+	BEGIN TRAN
+	DECLARE @count INT = 0;
+	DECLARE @idMedico INT;
+	DECLARE @idPaciente INT;
+	DECLARE @idMedicacion INT;
+	DECLARE @idTurno INT;
+	DECLARE @suffix INT = (SELECT MAX(ID) FROM Receta);
+	IF @suffix IS NULL SET @suffix = 0;
+	WHILE @count < @cant
+	BEGIN
+		BEGIN TRY
+		EXEC randIDMedico @idMedico OUTPUT
+		EXEC randIDPaciente @idPaciente OUTPUT
+		EXEC randIDMedicacion @idMedicacion OUTPUT
+		EXEC randIDTurno @idTurno OUTPUT
+		INSERT INTO Receta VALUES (
+			@idMedico,
+			@idPaciente,
+			@idMedicacion,
+			@idTurno,
+			'Dosis' + CAST((@count+@suffix) AS VARCHAR(10)))
+		SET @count = @count + 1
+		END TRY
+		BEGIN CATCH
+			PRINT 'GROUP IDMEDICO='+@idMedico+' / IDPACIENTE='+@idPaciente+' / IDMEDICACION='+@idMedicacion+' / IDTURNO='+@idTurno+' ALREADY IN TABLE'
+			SET @count = @count + 1
+		END CATCH
+	END
+	COMMIT TRAN
+END TRY
+BEGIN CATCH
+	PRINT 'UNKNOWN ERROR'
+	ROLLBACK TRAN
+END CATCH
+GO
+--test
+EXEC insertReceta 10
+SELECT * FROM Receta ORDER BY ID
+GO
 
 --------------------FUNCIONES PRINCIPALES--------------------
 
