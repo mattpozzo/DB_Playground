@@ -269,6 +269,12 @@ AS
 SET @idTurno = (SELECT TOP 1 ID FROM Turno ORDER BY NEWID())
 GO
 
+-- Random ID Admision
+CREATE PROCEDURE randIDAdmision @idAdmision INT OUTPUT
+AS
+SET @idAdmision = (SELECT TOP 1 ID FROM Admision ORDER BY NEWID())
+GO
+
 -----------------------SP DE INSERCIÓN-----------------------
 
 -- Insert masivo Medico
@@ -761,6 +767,130 @@ GO
 --test
 EXEC insertReceta 10
 SELECT * FROM Receta ORDER BY ID
+GO
+
+CREATE PROCEDURE insertLlamada @cant INT
+AS
+IF @cant <= 0
+	BEGIN
+	PRINT 'Ingrese una cantidad mayor a cero.'
+	RETURN
+	END
+BEGIN TRY
+	BEGIN TRAN
+	DECLARE @count INT = 0;
+	DECLARE @idEnfermero INT;
+	DECLARE @idBloque INT;
+	WHILE @count < @cant
+	BEGIN
+		BEGIN TRY
+		DECLARE @fecha DATETIME = '2021-01-01 00:00:00';
+		EXEC randIDEnfermero @idEnfermero OUTPUT
+		EXEC randIDBloque @idBloque OUTPUT
+		EXEC randFecha @fecha OUTPUT
+		INSERT INTO Llamada VALUES (
+			@idEnfermero,
+			@idBloque,
+			@fecha,
+			DATEADD(SECOND,ROUND(RAND()*110+10,0),@fecha))
+		SET @count = @count + 1
+		END TRY
+		BEGIN CATCH
+			PRINT 'GROUP IDENFERMERO='+@idEnfermero+' / IDBLOQUE='+@idBloque+' / COMIENZO='+@fecha+' / FINAL ALREADY IN TABLE'
+			SET @count = @count + 1
+		END CATCH
+	END
+	COMMIT TRAN
+END TRY
+BEGIN CATCH
+	PRINT 'UNKNOWN ERROR'
+	ROLLBACK TRAN
+END CATCH
+GO
+--test
+EXEC insertLlamada 25
+SELECT * FROM Llamada
+GO
+
+CREATE PROCEDURE insertAdmision @cant INT
+AS
+IF @cant <= 0
+	BEGIN
+	PRINT 'Ingrese una cantidad mayor a cero.'
+	RETURN
+	END
+BEGIN TRY
+	BEGIN TRAN
+	DECLARE @count INT = 0;
+	DECLARE @idPaciente INT;
+	DECLARE @idSala INT;
+	WHILE @count < @cant
+	BEGIN
+		DECLARE @fecha DATETIME = '2021-01-01 00:00:00';
+		EXEC randIDPaciente @idPaciente OUTPUT
+		EXEC randIDSala @idSala OUTPUT
+		EXEC randFecha @fecha OUTPUT
+		INSERT INTO Admision VALUES (
+			@idPaciente,
+			@idSala,
+			@fecha,
+			DATEADD(HOUR,ROUND(RAND()*164+4,0),@fecha))
+		SET @count = @count + 1
+	END
+	COMMIT TRAN
+END TRY
+BEGIN CATCH
+	PRINT 'UNKNOWN ERROR'
+	ROLLBACK TRAN
+END CATCH
+GO
+--test
+EXEC insertAdmision 15
+SELECT * FROM Admision
+GO
+
+CREATE PROCEDURE insertIntervencion @cant INT
+AS
+IF @cant <= 0
+	BEGIN
+	PRINT 'Ingrese una cantidad mayor a cero.'
+	RETURN
+	END
+BEGIN TRY
+	BEGIN TRAN
+	DECLARE @count INT = 0;
+	DECLARE @idProcedimiento INT;
+	DECLARE @idAdmision INT;
+	DECLARE @fecha DATETIME;
+	DECLARE @idMedico INT;
+	DECLARE @idEnfermero INT;
+	WHILE @count < @cant
+	BEGIN
+		EXEC randIDProcedimiento @idProcedimiento OUTPUT
+		EXEC randIDAdmision @idAdmision OUTPUT
+		SET @fecha = CAST((SELECT Comienzo FROM Admision WHERE ID = @idAdmision) AS DATE)
+		SET @idMedico = (SELECT TOP 1 aux.Medico FROM (SELECT * FROM Capacitacion WHERE Procedimiento = @idProcedimiento) AS aux ORDER BY NEWID())
+		EXEC randIDEnfermero @idEnfermero OUTPUT
+		INSERT INTO Intervencion VALUES (
+			@idProcedimiento,
+			@idAdmision,
+			@fecha,
+			@idMedico,
+			@idEnfermero)
+		SET @count = @count + 1
+	END
+	COMMIT TRAN
+END TRY
+BEGIN CATCH
+	PRINT 'UNKNOWN ERROR'
+	ROLLBACK TRAN
+END CATCH
+GO
+--test
+EXEC insertIntervencion 15
+SELECT * FROM Intervencion ORDER BY Procedimiento
+GO
+SELECT * FROM Capacitacion ORDER BY Procedimiento
 GO
 
 --------------------FUNCIONES PRINCIPALES--------------------
