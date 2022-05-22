@@ -13,7 +13,7 @@ CREATE TABLE Medico (
 CREATE TABLE Departamento (
 	ID			INT PRIMARY KEY IDENTITY(1,1) NOT NULL,
 	Nombre		VARCHAR(50) NOT NULL,
-	Director	INT CONSTRAINT FK_ID_Medico1 FOREIGN KEY REFERENCES Medico(ID) NOT NULL,
+	Jefe		INT CONSTRAINT FK_ID_Medico1 FOREIGN KEY REFERENCES Medico(ID) NOT NULL,
 	CONSTRAINT UC_Departamento1 UNIQUE(Nombre)
 )
 
@@ -895,11 +895,25 @@ GO
 
 --------------------FUNCIONES PRINCIPALES--------------------
 
-CREATE FUNCTION noRegistrado ()
-RETURNS TABLE AS
-RETURN
-	SELECT * FROM Enfermero
-	WHERE Registrado = 0;
+CREATE VIEW noRegistrado AS
+	SELECT * FROM Enfermero WHERE Registrado = 0;
 GO
 --test
-SELECT * FROM noRegistrado()
+SELECT * FROM noRegistrado
+GO
+
+CREATE VIEW jefesEnfermeria AS
+	SELECT Nombre,Puesto FROM Enfermero WHERE Puesto LIKE '%Jefe%' OR Puesto LIKE '%jefe%';
+GO
+--test
+SELECT * FROM jefesEnfermeria
+GO
+
+CREATE VIEW jefesDepartamento AS
+	SELECT Departamento.Nombre AS Departamento,Medico.Nombre AS nMedico,Medico.Apellido AS aMedico
+	FROM Departamento
+	INNER JOIN Medico ON Departamento.Director = Medico.ID
+GO
+--test
+SELECT * FROM jefesDepartamento
+GO
